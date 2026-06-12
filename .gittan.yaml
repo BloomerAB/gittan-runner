@@ -1,0 +1,21 @@
+steps:
+  - name: typecheck
+    image: gittan/node:22
+    run: pnpm typecheck
+
+  - name: test
+    image: gittan/node:22
+    run: pnpm test
+
+  - name: build
+    image: gittan/node:22
+    run: pnpm build
+    needs: [typecheck, test]
+
+gated:
+  - main
+
+depends:
+  - repo: types
+    cascade: true
+    contractTest: false
