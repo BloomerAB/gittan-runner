@@ -13,11 +13,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: BloomerAB/gittan-types
+          path: types
+      - run: ln -s $GITHUB_WORKSPACE/types ../types
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
+      - run: cd types && pnpm install --frozen-lockfile && pnpm build
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test
@@ -30,6 +36,12 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: BloomerAB/gittan-types
+          path: types
+      - run: ln -s $GITHUB_WORKSPACE/types ../types
+      - run: cd types && corepack enable && pnpm install --frozen-lockfile && pnpm build
 
       - uses: docker/login-action@v3
         with:
@@ -43,5 +55,6 @@ jobs:
       - uses: docker/build-push-action@v7
         with:
           push: true
+          context: .
           tags: ${{ env.IMAGE }}:${{ steps.meta.outputs.tag }}
           platforms: linux/arm64
