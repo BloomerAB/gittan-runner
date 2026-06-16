@@ -20,6 +20,7 @@ const TOOLING_RULES: ReadonlyArray<{
   pattern: RegExp
   file: RegExp
   message: string
+  opsImpact?: string
   suggestion: string
 }> = [
   {
