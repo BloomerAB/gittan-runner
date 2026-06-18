@@ -8,9 +8,9 @@ importers:
 
   .:
     dependencies:
-      '@gittan/types':
-        specifier: link:../types
-        version: link:../types
+      '@bloomerab/gittan-types':
+        specifier: ^0.1.0
+        version: 0.1.0
       nats:
         specifier: ^2.29.3
         version: 2.29.3
@@ -32,6 +32,9 @@ importers:
         version: 3.2.6(@types/node@25.9.3)(tsx@4.22.4)
 
 packages:
+
+  '@bloomerab/gittan-types@0.1.0':
+    resolution: {integrity: sha512-6YblGnN8lURMA27xeeeVgtNUnRmMOjrmvcuNWk2B5CuLarJYeQOBOwuXGo5lcOgxGXxZWGPpEAdPoXsFW50+1w==, tarball: https://npm.pkg.github.com/download/@bloomerab/gittan-types/0.1.0/401c8b3cafa128be71e659a04fcd30daf2751dd0}
 
   '@esbuild/aix-ppc64@0.27.7':
     resolution: {integrity: sha512-EKX3Qwmhz1eMdEJokhALr0YiD0lhQNwDqkPYyPhiSwKrh7/4KRjQc04sZ8db+5DVVnZ1LmbNDI1uAMPEUBnQPg==}
@@ -775,6 +778,10 @@ packages:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
 snapshots:
+
+  '@bloomerab/gittan-types@0.1.0':
+    dependencies:
+      zod: 3.25.76
 
   '@esbuild/aix-ppc64@0.27.7':
     optional: true

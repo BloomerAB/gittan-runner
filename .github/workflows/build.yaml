@@ -1,6 +1,7 @@
 name: Build and push
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
 
@@ -13,35 +14,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: BloomerAB/gittan-types
-          path: types
-      - run: ln -s $GITHUB_WORKSPACE/types ../types
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-      - run: cd types && pnpm install --frozen-lockfile && pnpm build
+          registry-url: https://npm.pkg.github.com
       - run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: pnpm typecheck
       - run: pnpm test
 
   build:
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: BloomerAB/gittan-types
-          path: types
-      - run: ln -s $GITHUB_WORKSPACE/types ../types
-      - run: cd types && corepack enable && pnpm install --frozen-lockfile && pnpm build
 
       - uses: docker/login-action@v3
         with:
@@ -57,4 +49,4 @@ jobs:
           push: true
           context: .
           tags: ${{ env.IMAGE }}:${{ steps.meta.outputs.tag }}
-          platforms: linux/arm64
+          build-args: NPM_TOKEN=${{ secrets.NPM_TOKEN }}
