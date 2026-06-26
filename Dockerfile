@@ -13,7 +13,9 @@ RUN pnpm build
 FROM node:22-slim
 WORKDIR /app
 LABEL org.opencontainers.image.source=https://github.com/BloomerAB/gittan-runner
-RUN useradd -r -u 1001 gittan
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+  && rm -rf /var/lib/apt/lists/* \
+  && useradd -r -u 1001 gittan
 COPY --from=builder /app/dist/ dist/
 COPY --from=builder /app/node_modules/ node_modules/
 COPY package.json ./
