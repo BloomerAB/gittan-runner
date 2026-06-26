@@ -16,6 +16,8 @@ export type TResolvedStep = {
 
 export type TResolvedPipelineMessage = {
   readonly pushEventId: string
+  readonly orgId: string
+  readonly teamId: string
   readonly repoId: string
   readonly branch: string
   readonly isGated: boolean
@@ -41,6 +43,8 @@ export type TStepResult = {
 
 export type TPipelineResult = {
   readonly pushEventId: string
+  readonly orgId: string
+  readonly teamId: string
   readonly repoId: string
   readonly branch: string
   readonly isGated: boolean
