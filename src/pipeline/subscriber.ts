@@ -15,6 +15,7 @@ export type TRunnerSubscriberDeps = {
     repoFullName: string,
     branch: string,
     workDir: string,
+    token?: string,
   ) => Promise<string>
 }
 
@@ -60,6 +61,7 @@ export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
           repoPath,
           message.branch,
           workDir,
+          deps.config.forgejoToken,
         )
 
         const result = await executePipelineWithDagger(

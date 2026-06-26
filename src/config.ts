@@ -3,6 +3,7 @@ import { z } from "zod"
 const ConfigSchema = z.object({
   natsUrl: z.string().default("nats://localhost:4222"),
   forgejoUrl: z.string().url().default("http://localhost:3333"),
+  forgejoToken: z.string().min(1).optional(),
   workDir: z.string().default("/tmp/gittan-runner"),
 })
 
@@ -17,6 +18,7 @@ export const loadConfig = (): TConfig => {
   const result = ConfigSchema.safeParse({
     natsUrl: env("NATS_URL"),
     forgejoUrl: env("FORGEJO_URL"),
+    forgejoToken: env("FORGEJO_TOKEN"),
     workDir: env("WORK_DIR"),
   })
 

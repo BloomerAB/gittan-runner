@@ -11,8 +11,14 @@ const cloneRepo = async (
   repoFullName: string,
   branch: string,
   workDir: string,
+  token?: string,
 ): Promise<string> => {
-  const cloneUrl = `${forgejoUrl}/${repoFullName}.git`
+  const url = new URL(`/${repoFullName}.git`, forgejoUrl)
+  if (token) {
+    url.username = "gittan-runner"
+    url.password = token
+  }
+  const cloneUrl = url.toString()
   await mkdir(workDir, { recursive: true })
 
   await new Promise<void>((resolve, reject) => {
