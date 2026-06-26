@@ -19,6 +19,8 @@ export type TResolvedPipelineMessage = {
   readonly orgId: string
   readonly teamId: string
   readonly repoId: string
+  readonly repoName?: string
+  readonly forgejoFullName?: string
   readonly branch: string
   readonly isGated: boolean
   readonly resolved: {

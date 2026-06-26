@@ -54,9 +54,10 @@ export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
         const workDir = `${deps.config.workDir}/${message.pushEventId}`
         await mkdir(workDir, { recursive: true })
 
+        const repoPath = message.forgejoFullName ?? `${message.orgId}/${message.repoName ?? message.repoId}`
         const sourceDir = await deps.cloneRepo(
           deps.config.forgejoUrl,
-          `${message.orgId}/${message.repoId}`,
+          repoPath,
           message.branch,
           workDir,
         )
