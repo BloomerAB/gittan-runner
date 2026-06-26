@@ -1,6 +1,7 @@
 import { connect, type Container, type Client } from "@dagger.io/dagger"
 
 import { buildDAG } from "./dag.js"
+import { resolveImage } from "./image-resolver.js"
 import type {
   TPipelineResult,
   TResolvedPipelineMessage,
@@ -34,6 +35,17 @@ const runStepWithDagger = async (
     }
   }
 
+  const imageValidation = resolveImage(step.image)
+  if (!imageValidation.valid) {
+    return {
+      stepName: step.name,
+      status: "failed",
+      durationMs: 0,
+      source: step.source,
+      error: imageValidation.reason,
+    }
+  }
+
   const startTime = Date.now()
 
   try {
@@ -41,7 +53,7 @@ const runStepWithDagger = async (
 
     let container: Container = client
       .container()
-      .from(step.image)
+      .from(imageValidation.resolved)
       .withDirectory("/workspace", src)
       .withWorkdir("/workspace")
 
