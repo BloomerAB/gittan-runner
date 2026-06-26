@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@bloomerab/gittan-types": "^0.1.0",
+    "@dagger.io/dagger": "^0.21.7",
     "nats": "^2.29.3",
     "zod": "^3.25.67"
   },

@@ -1,14 +1,15 @@
+import { mkdir, rm } from "node:fs/promises"
+
 import type { NatsConnection } from "nats"
 import { StringCodec } from "nats"
 
 import type { TConfig } from "../config.js"
-import { executePipeline, type TStepRunner } from "./executor.js"
+import { executePipelineWithDagger } from "./dagger-executor.js"
 import type { TResolvedPipelineMessage, TStepResult } from "./types.js"
 
 export type TRunnerSubscriberDeps = {
   readonly nats: NatsConnection
   readonly config: TConfig
-  readonly stepRunner: TStepRunner
   readonly cloneRepo: (
     forgejoUrl: string,
     repoFullName: string,
@@ -34,6 +35,8 @@ export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
             sc.encode(
               JSON.stringify({
                 pushEventId: message.pushEventId,
+                orgId: message.orgId,
+                teamId: message.teamId,
                 repoId: message.repoId,
                 branch: message.branch,
                 isGated: message.isGated,
@@ -49,11 +52,18 @@ export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
         }
 
         const workDir = `${deps.config.workDir}/${message.pushEventId}`
+        await mkdir(workDir, { recursive: true })
 
-        const result = await executePipeline(
-          message,
-          deps.stepRunner,
+        const sourceDir = await deps.cloneRepo(
+          deps.config.forgejoUrl,
+          `${message.orgId}/${message.repoId}`,
+          message.branch,
           workDir,
+        )
+
+        const result = await executePipelineWithDagger(
+          message,
+          sourceDir,
           (stepResult: TStepResult) => {
             deps.nats.publish(
               "gittan.pipeline.step-progress",
@@ -72,6 +82,8 @@ export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
           "gittan.pipeline.result",
           sc.encode(JSON.stringify(result)),
         )
+
+        await rm(workDir, { recursive: true, force: true }).catch(() => {})
       } catch (err) {
         console.error("Pipeline execution failed:", err)
       }
