@@ -1,4 +1,4 @@
-import { connect, ExecError, type Container, type Client } from "@dagger.io/dagger"
+import { connect, ExecError, type Container, type Client, type Directory } from "@dagger.io/dagger"
 
 import { buildDAG } from "./dag.js"
 import { resolveImage } from "./image-resolver.js"
@@ -10,6 +10,11 @@ import type {
 } from "./types.js"
 
 export type TProgressCallback = (stepResult: TStepResult) => void
+
+type TStepOutput = {
+  readonly result: TStepResult
+  readonly workspace?: Directory
+}
 
 const CACHE_PATH_MAP: Record<string, string> = {
   node_modules: "/root/.local/share/pnpm/store",
@@ -24,33 +29,38 @@ const runStepWithDagger = async (
   step: TResolvedStep,
   sourceDir: string,
   orgId: string,
+  inputWorkspace?: Directory,
   secrets?: Record<string, string>,
-): Promise<TStepResult> => {
+): Promise<TStepOutput> => {
   if (!step.image || !step.run) {
     return {
-      stepName: step.name,
-      status: "skipped",
-      durationMs: 0,
-      source: step.source,
-      output: "No image or run command specified",
+      result: {
+        stepName: step.name,
+        status: "skipped",
+        durationMs: 0,
+        source: step.source,
+        output: "No image or run command specified",
+      },
     }
   }
 
   const imageValidation = resolveImage(step.image)
   if (!imageValidation.valid) {
     return {
-      stepName: step.name,
-      status: "failed",
-      durationMs: 0,
-      source: step.source,
-      error: imageValidation.reason,
+      result: {
+        stepName: step.name,
+        status: "failed",
+        durationMs: 0,
+        source: step.source,
+        error: imageValidation.reason,
+      },
     }
   }
 
   const startTime = Date.now()
 
   try {
-    const src = client.host().directory(sourceDir)
+    const src = inputWorkspace ?? client.host().directory(sourceDir)
 
     let container: Container = client
       .container()
@@ -83,36 +93,43 @@ const runStepWithDagger = async (
     const durationMs = Date.now() - startTime
 
     return {
-      stepName: step.name,
-      status: "passed",
-      durationMs,
-      exitCode: 0,
-      output: [stdout, stderr].filter(Boolean).join("\n"),
-      source: step.source,
+      result: {
+        stepName: step.name,
+        status: "passed",
+        durationMs,
+        exitCode: 0,
+        output: [stdout, stderr].filter(Boolean).join("\n"),
+        source: step.source,
+      },
+      workspace: executed.directory("/workspace"),
     }
   } catch (err) {
     const durationMs = Date.now() - startTime
 
     if (err instanceof ExecError) {
       return {
-        stepName: step.name,
-        status: "failed",
-        durationMs,
-        exitCode: err.exitCode ?? 1,
-        error: err.stderr || err.stdout || err.message,
-        output: err.stdout || undefined,
-        source: step.source,
+        result: {
+          stepName: step.name,
+          status: "failed",
+          durationMs,
+          exitCode: err.exitCode ?? 1,
+          error: err.stderr || err.stdout || err.message,
+          output: err.stdout || undefined,
+          source: step.source,
+        },
       }
     }
 
     const message = err instanceof Error ? err.message : String(err)
     return {
-      stepName: step.name,
-      status: "failed",
-      durationMs,
-      exitCode: 1,
-      error: message,
-      source: step.source,
+      result: {
+        stepName: step.name,
+        status: "failed",
+        durationMs,
+        exitCode: 1,
+        error: message,
+        source: step.source,
+      },
     }
   }
 }
@@ -129,6 +146,7 @@ export const executePipelineWithDagger = async (
 
   const allResults: TStepResult[] = []
   let pipelinePassed = true
+  let currentWorkspace: Directory | undefined
 
   await connect(async (client: Client) => {
     for (const stage of stages) {
@@ -149,29 +167,34 @@ export const executePipelineWithDagger = async (
         return step.only === message.branch
       }
 
-      const results = await Promise.all(
+      const outputs = await Promise.all(
         stage.map(async (step) => {
           if (!branchFilter(step)) {
-            const stepResult: TStepResult = {
+            const result: TStepResult = {
               stepName: step.name,
               status: "skipped",
               durationMs: 0,
               source: step.source,
             }
-            onProgress?.(stepResult)
-            return stepResult
+            onProgress?.(result)
+            return { result } as TStepOutput
           }
 
-          const stepResult = await runStepWithDagger(client, step, sourceDir, message.orgId, secrets)
-          onProgress?.(stepResult)
-          return stepResult
+          const output = await runStepWithDagger(client, step, sourceDir, message.orgId, currentWorkspace, secrets)
+          onProgress?.(output.result)
+          return output
         }),
       )
 
-      allResults.push(...results)
+      allResults.push(...outputs.map((o) => o.result))
 
-      if (results.some((r) => r.status === "failed")) {
+      if (outputs.some((o) => o.result.status === "failed")) {
         pipelinePassed = false
+      } else {
+        const successfulWorkspace = outputs.find((o) => o.workspace)?.workspace
+        if (successfulWorkspace) {
+          currentWorkspace = successfulWorkspace
+        }
       }
     }
   })
