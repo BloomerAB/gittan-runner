@@ -2,7 +2,7 @@ steps:
   - name: install
     description: Install dependencies from lockfile
     image: gittan/node:22
-    run: corepack enable && pnpm install --frozen-lockfile
+    run: pnpm install --frozen-lockfile
     cache:
       - node_modules
 

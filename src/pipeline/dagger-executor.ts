@@ -157,7 +157,11 @@ const runStepWithDagger = async (
       }
     }
 
-    const executed = container.withExec(["sh", "-c", step.run])
+    const needsCorepack = imageValidation.resolved.includes("node")
+    const runCmd = needsCorepack && !step.run.includes("corepack")
+      ? `corepack enable && ${step.run}`
+      : step.run
+    const executed = container.withExec(["sh", "-c", runCmd])
 
     const stdout = await executed.stdout()
     const stderr = await executed.stderr()
