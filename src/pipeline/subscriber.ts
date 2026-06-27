@@ -64,6 +64,9 @@ export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
           deps.config.forgejoToken,
         )
 
+        const secrets: Record<string, string> = {}
+        if (deps.config.npmToken) secrets.NPM_TOKEN = deps.config.npmToken
+
         const result = await executePipelineWithDagger(
           message,
           sourceDir,
@@ -79,6 +82,7 @@ export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
               ),
             )
           },
+          Object.keys(secrets).length > 0 ? secrets : undefined,
         )
 
         deps.nats.publish(

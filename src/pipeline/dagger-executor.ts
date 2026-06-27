@@ -11,6 +11,14 @@ import type {
 
 export type TProgressCallback = (stepResult: TStepResult) => void
 
+const extractStderr = (errorMessage: string): string | undefined => {
+  const stderrMatch = errorMessage.match(/Stderr:\n([\s\S]*?)(?:\n\n|$)/)
+  if (stderrMatch) return stderrMatch[1].trim()
+  const stdoutMatch = errorMessage.match(/Stdout:\n([\s\S]*?)(?:\n\n|$)/)
+  if (stdoutMatch) return stdoutMatch[1].trim()
+  return undefined
+}
+
 const CACHE_PATH_MAP: Record<string, string> = {
   node_modules: "/root/.local/share/pnpm/store",
   ".pnpm-store": "/root/.local/share/pnpm/store",
@@ -24,6 +32,7 @@ const runStepWithDagger = async (
   step: TResolvedStep,
   sourceDir: string,
   orgId: string,
+  secrets?: Record<string, string>,
 ): Promise<TStepResult> => {
   if (!step.image || !step.run) {
     return {
@@ -63,9 +72,16 @@ const runStepWithDagger = async (
       container = container.withMountedCache(mountPath, client.cacheVolume(volumeName))
     }
 
-    const result = container.withExec(["sh", "-c", step.run])
+    if (secrets) {
+      for (const [key, value] of Object.entries(secrets)) {
+        container = container.withSecretVariable(key, client.setSecret(key, value))
+      }
+    }
 
-    const stdout = await result.stdout()
+    const executed = container.withExec(["sh", "-c", step.run])
+
+    const stdout = await executed.stdout()
+    const stderr = await executed.stderr()
     const durationMs = Date.now() - startTime
 
     return {
@@ -73,19 +89,20 @@ const runStepWithDagger = async (
       status: "passed",
       durationMs,
       exitCode: 0,
-      output: stdout,
+      output: [stdout, stderr].filter(Boolean).join("\n"),
       source: step.source,
     }
   } catch (err) {
     const durationMs = Date.now() - startTime
     const message = err instanceof Error ? err.message : String(err)
+    const stderr = extractStderr(message)
 
     return {
       stepName: step.name,
       status: "failed",
       durationMs,
       exitCode: 1,
-      error: message,
+      error: stderr || message,
       source: step.source,
     }
   }
@@ -95,6 +112,7 @@ export const executePipelineWithDagger = async (
   message: TResolvedPipelineMessage,
   sourceDir: string,
   onProgress?: TProgressCallback,
+  secrets?: Record<string, string>,
 ): Promise<TPipelineResult> => {
   const startedAt = new Date().toISOString()
   const startTime = Date.now()
@@ -135,7 +153,7 @@ export const executePipelineWithDagger = async (
             return stepResult
           }
 
-          const stepResult = await runStepWithDagger(client, step, sourceDir, message.orgId)
+          const stepResult = await runStepWithDagger(client, step, sourceDir, message.orgId, secrets)
           onProgress?.(stepResult)
           return stepResult
         }),
