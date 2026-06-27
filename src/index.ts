@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process"
 import { mkdir } from "node:fs/promises"
+import { dirname } from "node:path"
 
 import { connect as natsConnect } from "nats"
 
@@ -19,7 +20,7 @@ const cloneRepo = async (
     url.password = token
   }
   const cloneUrl = url.toString()
-  await mkdir(workDir, { recursive: true })
+  await mkdir(dirname(workDir), { recursive: true })
 
   await new Promise<void>((resolve, reject) => {
     execFile(

@@ -1,4 +1,4 @@
-import { mkdir, rm } from "node:fs/promises"
+import { rm } from "node:fs/promises"
 
 import type { NatsConnection } from "nats"
 import { StringCodec } from "nats"
@@ -22,9 +22,10 @@ export type TRunnerSubscriberDeps = {
 export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
   const sc = StringCodec()
 
-  const sub = deps.nats.subscribe("gittan.pipeline.resolved")
+  const sub = deps.nats.subscribe("gittan.pipeline.resolved", { queue: "pipeline-runners" })
   ;(async () => {
     for await (const msg of sub) {
+      let workDir: string | undefined
       try {
         const message: TResolvedPipelineMessage = JSON.parse(
           sc.decode(msg.data),
@@ -52,8 +53,7 @@ export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
           continue
         }
 
-        const workDir = `${deps.config.workDir}/${message.pushEventId}`
-        await mkdir(workDir, { recursive: true })
+        workDir = `${deps.config.workDir}/${message.pushEventId}-${Date.now()}`
 
         const repoPath = message.forgejoFullName ?? `${message.orgId}/${message.repoName ?? message.repoId}`
         const sourceDir = await deps.cloneRepo(
@@ -85,10 +85,12 @@ export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
           "gittan.pipeline.result",
           sc.encode(JSON.stringify(result)),
         )
-
-        await rm(workDir, { recursive: true, force: true }).catch(() => {})
       } catch (err) {
         console.error("Pipeline execution failed:", err)
+      } finally {
+        if (workDir) {
+          await rm(workDir, { recursive: true, force: true }).catch(() => {})
+        }
       }
     }
   })()
