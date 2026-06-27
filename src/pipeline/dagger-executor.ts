@@ -52,7 +52,13 @@ const runPublishStep = async (
     const registryUrl = secrets?.REGISTRY_URL ?? "git.gittan.eu"
     const imageRef = `${registryUrl}/${publish.image}:${tag}`
 
-    let built = src.dockerBuild({ dockerfile: publish.dockerfile })
+    const buildArgs = secrets
+      ? Object.entries(secrets)
+          .filter(([key]) => key !== "REGISTRY_TOKEN" && key !== "REGISTRY_URL" && key !== "REGISTRY_USER")
+          .map(([name, value]) => ({ name, value }))
+      : []
+
+    let built = src.dockerBuild({ dockerfile: publish.dockerfile, buildArgs })
 
     if (secrets?.REGISTRY_TOKEN) {
       built = built.withRegistryAuth(
