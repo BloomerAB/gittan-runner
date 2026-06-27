@@ -24,6 +24,75 @@ const CACHE_PATH_MAP: Record<string, string> = {
   ".cache/uv": "/root/.cache/uv",
 } as const
 
+const generateTag = (sha: string): string => {
+  const now = new Date()
+  const y = now.getUTCFullYear()
+  const mo = String(now.getUTCMonth() + 1).padStart(2, "0")
+  const d = String(now.getUTCDate()).padStart(2, "0")
+  const h = String(now.getUTCHours()).padStart(2, "0")
+  const mi = String(now.getUTCMinutes()).padStart(2, "0")
+  const s = String(now.getUTCSeconds()).padStart(2, "0")
+  return `${y}${mo}${d}-${h}${mi}${s}-${sha.slice(0, 7)}`
+}
+
+const runPublishStep = async (
+  client: Client,
+  step: TResolvedStep,
+  sourceDir: string,
+  commitSha: string,
+  inputWorkspace?: Directory,
+  secrets?: Record<string, string>,
+): Promise<TStepOutput> => {
+  const publish = step.publish!
+  const startTime = Date.now()
+
+  try {
+    const src = inputWorkspace ?? client.host().directory(sourceDir)
+    const tag = generateTag(commitSha)
+    const registryUrl = secrets?.REGISTRY_URL ?? "git.gittan.eu"
+    const imageRef = `${registryUrl}/${publish.image}:${tag}`
+
+    let built = src.dockerBuild({ dockerfile: publish.dockerfile })
+
+    if (secrets?.REGISTRY_TOKEN) {
+      built = built.withRegistryAuth(
+        registryUrl,
+        secrets.REGISTRY_USER ?? "gittan-admin",
+        client.setSecret("registry-token", secrets.REGISTRY_TOKEN),
+      )
+    }
+
+    const digest = await built.publish(imageRef)
+    const durationMs = Date.now() - startTime
+
+    return {
+      result: {
+        stepName: step.name,
+        description: step.description,
+        status: "passed",
+        durationMs,
+        exitCode: 0,
+        output: `Published ${imageRef}\nDigest: ${digest}`,
+        source: step.source,
+      },
+    }
+  } catch (err) {
+    const durationMs = Date.now() - startTime
+    const message = err instanceof Error ? err.message : String(err)
+    return {
+      result: {
+        stepName: step.name,
+        description: step.description,
+        status: "failed",
+        durationMs,
+        exitCode: 1,
+        error: message,
+        source: step.source,
+      },
+    }
+  }
+}
+
 const runStepWithDagger = async (
   client: Client,
   step: TResolvedStep,
@@ -36,6 +105,7 @@ const runStepWithDagger = async (
     return {
       result: {
         stepName: step.name,
+        description: step.description,
         status: "skipped",
         durationMs: 0,
         source: step.source,
@@ -49,6 +119,7 @@ const runStepWithDagger = async (
     return {
       result: {
         stepName: step.name,
+        description: step.description,
         status: "failed",
         durationMs: 0,
         source: step.source,
@@ -95,6 +166,7 @@ const runStepWithDagger = async (
     return {
       result: {
         stepName: step.name,
+        description: step.description,
         status: "passed",
         durationMs,
         exitCode: 0,
@@ -110,6 +182,7 @@ const runStepWithDagger = async (
       return {
         result: {
           stepName: step.name,
+          description: step.description,
           status: "failed",
           durationMs,
           exitCode: err.exitCode ?? 1,
@@ -124,6 +197,7 @@ const runStepWithDagger = async (
     return {
       result: {
         stepName: step.name,
+        description: step.description,
         status: "failed",
         durationMs,
         exitCode: 1,
@@ -153,6 +227,7 @@ export const executePipelineWithDagger = async (
       if (!pipelinePassed) {
         const skipped = stage.map((step) => ({
           stepName: step.name,
+          description: step.description,
           status: "skipped" as const,
           durationMs: 0,
           source: step.source,
@@ -172,12 +247,23 @@ export const executePipelineWithDagger = async (
           if (!branchFilter(step)) {
             const result: TStepResult = {
               stepName: step.name,
+              description: step.description,
               status: "skipped",
               durationMs: 0,
               source: step.source,
             }
             onProgress?.(result)
             return { result } as TStepOutput
+          }
+
+          if (step.publish) {
+            const output = await runPublishStep(
+              client, step, sourceDir,
+              message.commitSha ?? message.pushEventId,
+              currentWorkspace, secrets,
+            )
+            onProgress?.(output.result)
+            return output
           }
 
           const output = await runStepWithDagger(client, step, sourceDir, message.orgId, currentWorkspace, secrets)
@@ -208,6 +294,9 @@ export const executePipelineWithDagger = async (
     repoId: message.repoId,
     branch: message.branch,
     isGated: message.isGated,
+    commitSha: message.commitSha,
+    commitMessage: message.commitMessage,
+    pusher: message.pusher,
     status: pipelinePassed ? "passed" : "failed",
     steps: allResults,
     startedAt,

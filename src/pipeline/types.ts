@@ -1,9 +1,14 @@
 export type TResolvedStep = {
   readonly name: string
+  readonly description?: string
   readonly image?: string
   readonly use?: string
   readonly with?: Record<string, string>
   readonly run?: string
+  readonly publish?: {
+    readonly image: string
+    readonly dockerfile: string
+  }
   readonly needs?: ReadonlyArray<string>
   readonly only?: string
   readonly cache?: ReadonlyArray<string>
@@ -23,6 +28,9 @@ export type TResolvedPipelineMessage = {
   readonly forgejoFullName?: string
   readonly branch: string
   readonly isGated: boolean
+  readonly commitSha?: string
+  readonly commitMessage?: string
+  readonly pusher?: string
   readonly resolved: {
     readonly steps: ReadonlyArray<TResolvedStep>
     readonly resolvedFrom: {
@@ -35,6 +43,7 @@ export type TResolvedPipelineMessage = {
 
 export type TStepResult = {
   readonly stepName: string
+  readonly description?: string
   readonly status: "passed" | "failed" | "skipped"
   readonly durationMs: number
   readonly exitCode?: number
@@ -50,6 +59,9 @@ export type TPipelineResult = {
   readonly repoId: string
   readonly branch: string
   readonly isGated: boolean
+  readonly commitSha?: string
+  readonly commitMessage?: string
+  readonly pusher?: string
   readonly status: "passed" | "failed"
   readonly steps: ReadonlyArray<TStepResult>
   readonly startedAt: string

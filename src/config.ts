@@ -5,6 +5,9 @@ const ConfigSchema = z.object({
   forgejoUrl: z.string().url().default("http://localhost:3333"),
   forgejoToken: z.string().min(1).optional(),
   npmToken: z.string().min(1).optional(),
+  registryUrl: z.string().min(1).optional(),
+  registryToken: z.string().min(1).optional(),
+  registryUser: z.string().min(1).optional(),
   workDir: z.string().default("/tmp/gittan-runner"),
 })
 
@@ -21,6 +24,9 @@ export const loadConfig = (): TConfig => {
     forgejoUrl: env("FORGEJO_URL"),
     forgejoToken: env("FORGEJO_TOKEN"),
     npmToken: env("NPM_TOKEN"),
+    registryUrl: env("REGISTRY_URL"),
+    registryToken: env("REGISTRY_TOKEN"),
+    registryUser: env("REGISTRY_USER"),
     workDir: env("WORK_DIR"),
   })
 

@@ -67,6 +67,9 @@ export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
 
         const secrets: Record<string, string> = {}
         if (deps.config.npmToken) secrets.NPM_TOKEN = deps.config.npmToken
+        if (deps.config.registryUrl) secrets.REGISTRY_URL = deps.config.registryUrl
+        if (deps.config.registryToken) secrets.REGISTRY_TOKEN = deps.config.registryToken
+        if (deps.config.registryUser) secrets.REGISTRY_USER = deps.config.registryUser
 
         const result = await executePipelineWithDagger(
           message,

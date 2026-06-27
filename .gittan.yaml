@@ -1,16 +1,36 @@
 steps:
+  - name: install
+    description: Install dependencies from lockfile
+    image: gittan/node:22
+    run: corepack enable && pnpm install --frozen-lockfile
+    cache:
+      - node_modules
+
   - name: typecheck
+    description: Type-check TypeScript
     image: gittan/node:22
     run: pnpm typecheck
+    needs: [install]
 
   - name: test
+    description: Run unit tests
     image: gittan/node:22
     run: pnpm test
+    needs: [install]
 
   - name: build
+    description: Compile TypeScript
     image: gittan/node:22
     run: pnpm build
     needs: [typecheck, test]
+
+  - name: publish
+    description: Build and push container image
+    publish:
+      image: gittan-runner
+      dockerfile: Dockerfile
+    needs: [build]
+    only: main
 
 gated:
   - main
