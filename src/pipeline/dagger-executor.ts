@@ -68,6 +68,12 @@ const runStepWithDagger = async (
       for (const [key, value] of Object.entries(secrets)) {
         container = container.withSecretVariable(key, client.setSecret(key, value))
       }
+      if (secrets.NPM_TOKEN) {
+        container = container.withExec([
+          "sh", "-c",
+          'echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> .npmrc',
+        ])
+      }
     }
 
     const executed = container.withExec(["sh", "-c", step.run])
