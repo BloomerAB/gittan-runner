@@ -1,4 +1,4 @@
-import { connect, type Container, type Client } from "@dagger.io/dagger"
+import { connect, ExecError, type Container, type Client } from "@dagger.io/dagger"
 
 import { buildDAG } from "./dag.js"
 import { resolveImage } from "./image-resolver.js"
@@ -10,14 +10,6 @@ import type {
 } from "./types.js"
 
 export type TProgressCallback = (stepResult: TStepResult) => void
-
-const extractStderr = (errorMessage: string): string | undefined => {
-  const stderrMatch = errorMessage.match(/Stderr:\n([\s\S]*?)(?:\n\n|$)/)
-  if (stderrMatch) return stderrMatch[1].trim()
-  const stdoutMatch = errorMessage.match(/Stdout:\n([\s\S]*?)(?:\n\n|$)/)
-  if (stdoutMatch) return stdoutMatch[1].trim()
-  return undefined
-}
 
 const CACHE_PATH_MAP: Record<string, string> = {
   node_modules: "/root/.local/share/pnpm/store",
@@ -94,15 +86,26 @@ const runStepWithDagger = async (
     }
   } catch (err) {
     const durationMs = Date.now() - startTime
-    const message = err instanceof Error ? err.message : String(err)
-    const stderr = extractStderr(message)
 
+    if (err instanceof ExecError) {
+      return {
+        stepName: step.name,
+        status: "failed",
+        durationMs,
+        exitCode: err.exitCode ?? 1,
+        error: err.stderr || err.stdout || err.message,
+        output: err.stdout || undefined,
+        source: step.source,
+      }
+    }
+
+    const message = err instanceof Error ? err.message : String(err)
     return {
       stepName: step.name,
       status: "failed",
       durationMs,
       exitCode: 1,
-      error: stderr || message,
+      error: message,
       source: step.source,
     }
   }

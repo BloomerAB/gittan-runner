@@ -54,6 +54,7 @@ export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
         }
 
         workDir = `${deps.config.workDir}/${message.pushEventId}-${Date.now()}`
+        console.log(`Pipeline received: ${message.repoName ?? message.repoId} branch=${message.branch} steps=${message.resolved.steps.length}`)
 
         const repoPath = message.forgejoFullName ?? `${message.orgId}/${message.repoName ?? message.repoId}`
         const sourceDir = await deps.cloneRepo(
@@ -85,6 +86,7 @@ export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
           Object.keys(secrets).length > 0 ? secrets : undefined,
         )
 
+        console.log(`Pipeline completed: ${message.repoName ?? message.repoId} → ${result.status} (${result.durationMs}ms)`)
         deps.nats.publish(
           "gittan.pipeline.result",
           sc.encode(JSON.stringify(result)),
