@@ -53,19 +53,31 @@ const runPublishStep = async (
     const registryUrl = secrets?.REGISTRY_URL ?? "images.gittan.eu"
     const imageRef = `${registryUrl}/${orgSlug}/${publish.image}:${tag}`
 
+    // Never pass REGISTRY_TOKEN (or registry coordinates) as a build arg — build
+    // args are baked into the image history. The token reaches the build as a
+    // BuildKit secret mount (/run/secrets/registry-token) instead, so Dockerfiles
+    // can install from npm.gittan.eu without leaking the credential into a layer.
     const buildArgs = secrets
       ? Object.entries(secrets)
           .filter(([key]) => key !== "REGISTRY_TOKEN" && key !== "REGISTRY_URL" && key !== "REGISTRY_USER")
           .map(([name, value]) => ({ name, value }))
       : []
 
-    let built = src.dockerBuild({ dockerfile: publish.dockerfile, buildArgs })
+    const registryToken = secrets?.REGISTRY_TOKEN
+      ? client.setSecret("registry-token", secrets.REGISTRY_TOKEN)
+      : undefined
 
-    if (secrets?.REGISTRY_TOKEN) {
+    let built = src.dockerBuild({
+      dockerfile: publish.dockerfile,
+      buildArgs,
+      secrets: registryToken ? [registryToken] : [],
+    })
+
+    if (registryToken) {
       built = built.withRegistryAuth(
         registryUrl,
-        secrets.REGISTRY_USER ?? "gittan-admin",
-        client.setSecret("registry-token", secrets.REGISTRY_TOKEN),
+        secrets?.REGISTRY_USER ?? "gittan-admin",
+        registryToken,
       )
     }
 

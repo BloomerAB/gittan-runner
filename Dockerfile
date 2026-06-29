@@ -1,11 +1,13 @@
+# syntax=docker/dockerfile:1
 FROM node:22-slim AS builder
 WORKDIR /app
-ARG REGISTRY_TOKEN
 COPY package.json pnpm-lock.yaml .npmrc ./
-RUN corepack enable \
-  && echo "//npm.gittan.eu/:_authToken=${REGISTRY_TOKEN}" >> .npmrc \
-  && pnpm install --frozen-lockfile \
-  && rm -f .npmrc
+# Registry credential arrives as a BuildKit secret mount, never a build arg/layer.
+# The committed .npmrc resolves ${REGISTRY_TOKEN}; export it for this step only.
+RUN --mount=type=secret,id=registry-token \
+  corepack enable \
+  && REGISTRY_TOKEN="$(cat /run/secrets/registry-token)" \
+     pnpm install --frozen-lockfile
 COPY tsconfig.json ./
 COPY src/ src/
 RUN pnpm build
