@@ -40,6 +40,7 @@ const runPublishStep = async (
   step: TResolvedStep,
   sourceDir: string,
   commitSha: string,
+  orgSlug: string,
   inputWorkspace?: Directory,
   secrets?: Record<string, string>,
 ): Promise<TStepOutput> => {
@@ -49,8 +50,8 @@ const runPublishStep = async (
   try {
     const src = inputWorkspace ?? client.host().directory(sourceDir)
     const tag = generateTag(commitSha)
-    const registryUrl = secrets?.REGISTRY_URL ?? "git.gittan.eu"
-    const imageRef = `${registryUrl}/${publish.image}:${tag}`
+    const registryUrl = secrets?.REGISTRY_URL ?? "images.gittan.eu"
+    const imageRef = `${registryUrl}/${orgSlug}/${publish.image}:${tag}`
 
     const buildArgs = secrets
       ? Object.entries(secrets)
@@ -270,6 +271,7 @@ export const executePipelineWithDagger = async (
             const output = await runPublishStep(
               client, step, sourceDir,
               message.commitSha ?? message.pushEventId,
+              message.orgName ?? message.orgId,
               currentWorkspace, secrets,
             )
             onProgress?.(output.result)

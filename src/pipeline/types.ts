@@ -22,6 +22,7 @@ export type TResolvedStep = {
 export type TResolvedPipelineMessage = {
   readonly pushEventId: string
   readonly orgId: string
+  readonly orgName?: string
   readonly teamId: string
   readonly repoId: string
   readonly repoName?: string

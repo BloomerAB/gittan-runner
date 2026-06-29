@@ -1,9 +1,9 @@
 FROM node:22-slim AS builder
 WORKDIR /app
-ARG NPM_TOKEN
+ARG REGISTRY_TOKEN
 COPY package.json pnpm-lock.yaml .npmrc ./
 RUN corepack enable \
-  && echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> .npmrc \
+  && echo "//npm.gittan.eu/:_authToken=${REGISTRY_TOKEN}" >> .npmrc \
   && pnpm install --frozen-lockfile \
   && rm -f .npmrc
 COPY tsconfig.json ./
