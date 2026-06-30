@@ -2,6 +2,11 @@ import { connect, ExecError, type Container, type Client, type Directory } from 
 
 import { buildDAG } from "./dag.js"
 import { resolveImage } from "./image-resolver.js"
+import {
+  annotateExpiredError,
+  expiredStepResult,
+  isTokenExpired,
+} from "./workload-token.js"
 import type {
   TPipelineResult,
   TResolvedPipelineMessage,
@@ -236,6 +241,7 @@ export const executePipelineWithDagger = async (
   sourceDir: string,
   onProgress?: TProgressCallback,
   secrets?: Record<string, string>,
+  workloadTokenExpiresAt?: string,
 ): Promise<TPipelineResult> => {
   const startedAt = new Date().toISOString()
   const startTime = Date.now()
@@ -279,20 +285,33 @@ export const executePipelineWithDagger = async (
             return { result } as TStepOutput
           }
 
-          if (step.publish) {
-            const output = await runPublishStep(
-              client, step, sourceDir,
-              message.commitSha ?? message.pushEventId,
-              message.orgName ?? message.orgId,
-              currentWorkspace, secrets,
-            )
-            onProgress?.(output.result)
-            return output
+          // Pre-check: a registry-bound step (one carrying the workload token)
+          // is refused outright once the token's 30-minute TTL has passed —
+          // attempting it would only surface a cryptic registry 401.
+          if (
+            secrets?.REGISTRY_TOKEN &&
+            workloadTokenExpiresAt &&
+            isTokenExpired(workloadTokenExpiresAt, Date.now())
+          ) {
+            const result = expiredStepResult(step, workloadTokenExpiresAt)
+            onProgress?.(result)
+            return { result } as TStepOutput
           }
 
-          const output = await runStepWithDagger(client, step, sourceDir, message.orgId, currentWorkspace, secrets)
-          onProgress?.(output.result)
-          return output
+          const output = step.publish
+            ? await runPublishStep(
+                client, step, sourceDir,
+                message.commitSha ?? message.pushEventId,
+                message.orgName ?? message.orgId,
+                currentWorkspace, secrets,
+              )
+            : await runStepWithDagger(client, step, sourceDir, message.orgId, currentWorkspace, secrets)
+
+          // Post-failure annotation: a failure that lands after the token has
+          // expired (e.g. a registry 401 mid-step) is relabelled as a TTL limit.
+          const result = annotateExpiredError(output.result, workloadTokenExpiresAt, Date.now())
+          onProgress?.(result)
+          return { ...output, result }
         }),
       )
 

@@ -5,6 +5,7 @@ import { StringCodec } from "nats"
 
 import type { TConfig } from "../config.js"
 import { executePipelineWithDagger } from "./dagger-executor.js"
+import { assembleSecrets } from "./secrets.js"
 import type { TResolvedPipelineMessage, TStepResult } from "./types.js"
 
 export type TRunnerSubscriberDeps = {
@@ -65,11 +66,7 @@ export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
           deps.config.forgejoToken,
         )
 
-        const secrets: Record<string, string> = {}
-        if (deps.config.npmToken) secrets.NPM_TOKEN = deps.config.npmToken
-        if (deps.config.registryUrl) secrets.REGISTRY_URL = deps.config.registryUrl
-        if (deps.config.registryToken) secrets.REGISTRY_TOKEN = deps.config.registryToken
-        if (deps.config.registryUser) secrets.REGISTRY_USER = deps.config.registryUser
+        const secrets = assembleSecrets(deps.config, message)
 
         const result = await executePipelineWithDagger(
           message,
@@ -87,6 +84,7 @@ export const startRunnerSubscriber = (deps: TRunnerSubscriberDeps): void => {
             )
           },
           Object.keys(secrets).length > 0 ? secrets : undefined,
+          message.workloadTokenExpiresAt,
         )
 
         console.log(`Pipeline completed: ${message.repoName ?? message.repoId} → ${result.status} (${result.durationMs}ms)`)

@@ -32,6 +32,8 @@ export type TResolvedPipelineMessage = {
   readonly commitSha?: string
   readonly commitMessage?: string
   readonly pusher?: string
+  readonly workloadToken?: string
+  readonly workloadTokenExpiresAt?: string
   readonly resolved: {
     readonly steps: ReadonlyArray<TResolvedStep>
     readonly resolvedFrom: {
