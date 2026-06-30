@@ -173,12 +173,13 @@ const runStepWithDagger = async (
       for (const [key, value] of Object.entries(secrets)) {
         container = container.withSecretVariable(key, client.setSecret(key, value))
       }
-      if (secrets.NPM_TOKEN) {
-        container = container.withExec([
-          "sh", "-c",
-          'echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> .npmrc',
-        ])
-      }
+      // NOTE: we deliberately do NOT mutate the workspace .npmrc here. Secrets are
+      // available as env vars, and a repo that needs a private registry declares it
+      // in its committed .npmrc referencing ${TOKEN} (e.g. ${REGISTRY_TOKEN} for
+      // npm.gittan.eu, ${NPM_TOKEN} for GitHub Packages). Appending an auth line to
+      // the workspace .npmrc leaked into the publish Docker build context (where
+      // NPM_TOKEN is unset), which broke pnpm's env-substitution and dropped ALL
+      // registry auth — failing the @gittan/types tarball with 401.
     }
 
     const needsCorepack = imageValidation.resolved.includes("node")
