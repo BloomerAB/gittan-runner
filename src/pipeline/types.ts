@@ -40,6 +40,16 @@ export type TResolvedPipelineMessage = {
       readonly policies: ReadonlyArray<string>
       readonly template?: string
       readonly repoConfig: boolean
+      readonly base?: {
+        readonly source: "repo" | "team" | "org" | "none"
+        readonly name?: string
+      }
+      readonly enforced?: ReadonlyArray<string>
+      readonly overridden?: ReadonlyArray<{
+        readonly scope: "org" | "team"
+        readonly name: string
+        readonly by: "repo" | "team"
+      }>
     }
   }
 }

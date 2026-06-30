@@ -28,6 +28,39 @@ const formatDuration = (ms: number): string => {
   return `${Math.floor(s / 60)}m ${s % 60}s`
 }
 
+type TResolvedFrom = {
+  readonly base?: { readonly source: "repo" | "team" | "org" | "none"; readonly name?: string }
+  readonly enforced?: ReadonlyArray<string>
+  readonly overridden?: ReadonlyArray<{ readonly scope: "org" | "team"; readonly name: string; readonly by: "repo" | "team" }>
+}
+
+const BASE_LABEL: Record<string, string> = {
+  repo: "repo .gittan.yaml",
+  team: "team pipeline",
+  org: "org pipeline",
+  none: "(none)",
+}
+
+/**
+ * Renders the resolved pipeline plan so the override is unambiguous: which base
+ * ran, which mandatory pipelines were enforced, and which shared defaults were
+ * skipped because a more specific scope took over.
+ */
+const renderPlan = (rf: TResolvedFrom): void => {
+  const base = rf.base
+  if (base) {
+    const label = BASE_LABEL[base.source] ?? base.source
+    const named = base.name ? `${label} "${base.name}"` : label
+    sideband(`▸ base: ${named}`)
+  }
+  if (rf.enforced && rf.enforced.length > 0) {
+    sideband(`▸ enforced: ${rf.enforced.join(", ")}`)
+  }
+  for (const o of rf.overridden ?? []) {
+    sideband(`⊘ ${o.scope} default "${o.name}" skipped — overridden by ${o.by}`)
+  }
+}
+
 export const handlePreReceive = async (
   input: string,
   natsUrl: string,
@@ -75,6 +108,7 @@ export const handlePreReceive = async (
       ),
     )
 
+    const planSub = nats.subscribe("gittan.pipeline.resolved")
     const sub = nats.subscribe("gittan.pipeline.step-progress")
     const resultSub = nats.subscribe("gittan.pipeline.result")
 
@@ -83,6 +117,14 @@ export const handlePreReceive = async (
         sideband("⚠ Pipeline timeout — accepting push")
         resolve({ status: "passed", steps: [] })
       }, 600_000)
+
+      ;(async () => {
+        for await (const msg of planSub) {
+          const plan = JSON.parse(sc.decode(msg.data))
+          if (plan.pushEventId !== pushEventId) continue
+          if (plan.resolved?.resolvedFrom) renderPlan(plan.resolved.resolvedFrom)
+        }
+      })()
 
       ;(async () => {
         for await (const msg of sub) {
@@ -106,6 +148,7 @@ export const handlePreReceive = async (
           const r = JSON.parse(sc.decode(msg.data))
           if (r.pushEventId !== pushEventId) continue
           clearTimeout(timeout)
+          planSub.unsubscribe()
           sub.unsubscribe()
           resultSub.unsubscribe()
           resolve(r)
