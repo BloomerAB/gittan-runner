@@ -31,8 +31,10 @@ export const expiredStepResult = (
   source: step.source,
 })
 
-// Post-failure annotation: a step that failed for any reason while the token was
-// already expired gets its error replaced with the unambiguous TTL message.
+// Post-failure annotation: a step that failed while the token was already expired
+// gets the unambiguous TTL note APPENDED to (not replacing) its real error — so a
+// genuine compile/test failure that happens to land past the 30-min mark keeps its
+// diagnostic, while a registry 401 caused by expiry is still explained.
 export const annotateExpiredError = (
   result: TStepResult,
   expiresAt: string | undefined,
@@ -40,5 +42,7 @@ export const annotateExpiredError = (
 ): TStepResult => {
   if (result.status !== "failed") return result
   if (!expiresAt || !isTokenExpired(expiresAt, now)) return result
-  return { ...result, error: workloadTokenExpiredMessage(expiresAt) }
+  const note = workloadTokenExpiredMessage(expiresAt)
+  const error = result.error ? `${result.error}\n\n${note}` : note
+  return { ...result, error }
 }

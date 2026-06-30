@@ -68,10 +68,11 @@ describe("annotateExpiredError (post-failure annotation)", () => {
     source: "repo" as const,
   }
 
-  it("replaces a cryptic failure error with the TTL message when expired", () => {
+  it("appends the TTL message to the real error when expired (preserves diagnostic)", () => {
     const annotated = annotateExpiredError(failed, EXPIRES_AT, Date.parse(EXPIRES_AT) + 1)
 
-    expect(annotated.error).toBe(EXPECTED_MESSAGE)
+    expect(annotated.error).toBe(`401 Unauthorized from images.gittan.eu\n\n${EXPECTED_MESSAGE}`)
+    expect(annotated.error).toContain("401 Unauthorized from images.gittan.eu")
     expect(annotated.durationMs).toBe(1234)
   })
 
