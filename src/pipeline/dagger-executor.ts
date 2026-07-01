@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+
 import { connect, ExecError, type Container, type Client, type Directory } from "@dagger.io/dagger"
 
 import { buildDAG } from "./dag.js"
@@ -40,12 +42,29 @@ const generateTag = (sha: string): string => {
   return `${y}${mo}${d}-${h}${mi}${s}-${sha.slice(0, 7)}`
 }
 
+// Minimal reader for the repo's `.gittan.config.yaml` (flat keys: `image:`,
+// `publish:`). Avoids a yaml dep — the config is intentionally a flat file.
+const readRepoConfig = (sourceDir: string): { image?: string; publish?: string } => {
+  try {
+    const raw = readFileSync(`${sourceDir}/.gittan.config.yaml`, "utf-8")
+    const cfg: { image?: string; publish?: string } = {}
+    for (const line of raw.split("\n")) {
+      const m = /^(image|publish):\s*("?)([^"#]+?)\2\s*(#.*)?$/.exec(line.trim())
+      if (m) cfg[m[1] as "image" | "publish"] = m[3].trim()
+    }
+    return cfg
+  } catch {
+    return {}
+  }
+}
+
 const runPublishStep = async (
   client: Client,
   step: TResolvedStep,
   sourceDir: string,
   commitSha: string,
   orgSlug: string,
+  repoName: string,
   inputWorkspace?: Directory,
   secrets?: Record<string, string>,
 ): Promise<TStepOutput> => {
@@ -56,7 +75,11 @@ const runPublishStep = async (
     const src = inputWorkspace ?? client.host().directory(sourceDir)
     const tag = generateTag(commitSha)
     const registryUrl = secrets?.REGISTRY_URL ?? "images.gittan.eu"
-    const imageRef = `${registryUrl}/${orgSlug}/${publish.image}:${tag}`
+    // Image name: explicit publish.image (repo's own .gittan.yaml) wins; else the
+    // repo's .gittan.config.yaml `image:` override; else the repo name.
+    const cfg = readRepoConfig(sourceDir)
+    const imageName = publish.image || cfg.image || repoName
+    const imageRef = `${registryUrl}/${orgSlug}/${imageName}:${tag}`
 
     // Never pass REGISTRY_TOKEN (or registry coordinates) as a build arg — build
     // args are baked into the image history. The token reaches the build as a
@@ -304,6 +327,7 @@ export const executePipelineWithDagger = async (
                 client, step, sourceDir,
                 message.commitSha ?? message.pushEventId,
                 message.orgName ?? message.orgId,
+                message.repoName ?? message.repoId,
                 currentWorkspace, secrets,
               )
             : await runStepWithDagger(client, step, sourceDir, message.orgId, currentWorkspace, secrets)
