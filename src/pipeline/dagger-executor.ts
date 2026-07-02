@@ -180,8 +180,23 @@ const runStepWithDagger = async (
   try {
     const src = inputWorkspace ?? client.host().directory(sourceDir)
 
-    let container: Container = client
-      .container()
+    // Step images hosted on OUR OWN registry (gittan tool images, e.g.
+    // gittan/kube-tools) are PRIVATE and gated by the workload-token PEP — the
+    // gateway rejects an anonymous pull. Authenticate the pull with the same
+    // workload token minted for this run (it already carries img:read). External
+    // step images (Docker Hub, ghcr) are pulled anonymously as before.
+    const registryUrl = secrets?.REGISTRY_URL ?? "images.gittan.eu"
+    const base = client.container()
+    const authedBase =
+      secrets?.REGISTRY_TOKEN && imageValidation.resolved.startsWith(`${registryUrl}/`)
+        ? base.withRegistryAuth(
+            registryUrl,
+            secrets.REGISTRY_USER ?? "gittan-admin",
+            client.setSecret("pull-registry-token", secrets.REGISTRY_TOKEN),
+          )
+        : base
+
+    let container: Container = authedBase
       .from(imageValidation.resolved)
       .withDirectory("/workspace", src)
       .withWorkdir("/workspace")
